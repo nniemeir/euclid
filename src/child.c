@@ -131,11 +131,13 @@ void apply_seccomp(void) {
 int child_main(void *arg) {
   struct child_args *ca = arg;
 
-  setup_uts_namespace(arg);
+  printf("ROOTFS IS: %s\n", ca->rootfs);
+
+  setup_uts_namespace(ca);
 
   setup_mount_propagation();
 
-  setup_rootfs(arg);
+  setup_rootfs(ca);
 
   mount_dev();
 
