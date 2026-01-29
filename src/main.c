@@ -1,23 +1,26 @@
 #define _GNU_SOURCE
+#include <errno.h>
 #include <fcntl.h>
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "cgroups.h"
 #include "child.h"
 
 #define STACK_SIZE (1024 * 1024)
 
-static int spawn_container(struct child_args *ca) {
+static int spawn_container(struct container_ctx *ca) {
   // Allocate stack for clone
   char *stack = malloc(STACK_SIZE);
   if (!stack) {
-    perror("malloc");
+    fprintf(stderr, "Memory allocation failed for child's stack: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
   }
 
@@ -27,7 +30,7 @@ static int spawn_container(struct child_args *ca) {
 
   int pid = clone(child_main, stack_top, flags, ca);
   if (pid == -1) {
-    perror("clone");
+    fprintf(stderr, "Failed to create child process: %s\n", strerror(errno));
     free(stack);
     exit(EXIT_FAILURE);
   }
@@ -46,31 +49,44 @@ static void wait_for_container(const int pid) {
 
   if (WIFSIGNALED(status)) {
     int sig = WTERMSIG(status);
-    printf("Child killed by signal %d\n", sig);
+    printf("Child killed by signal %d: %s\n", sig, strsignal(sig));
     if (sig == SIGSYS) {
-      printf("Likely seccomp violation\n");
+      printf("Likely seccomp violation.\n");
     }
   }
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 4) {
+  if (argc < 4) {
     fprintf(stderr, "usage: %s <rootfs> <hostname> <cmd>\n", argv[0]);
     return 1;
   }
 
-  struct child_args *ca = malloc(sizeof(struct child_args));
+  struct container_ctx *ctx = malloc(sizeof(struct container_ctx));
 
-  ca->rootfs = argv[1];
-  ca->hostname = argv[2];
-  ca->cmd = &argv[3];
-  
+  ctx->rootfs = argv[1];
+  ctx->hostname = argv[2];
+  ctx->cmd = &argv[3];
+
+  int pipe_fds[2]; 
+  if (pipe(pipe_fds) == -1) {
+    fprintf(stderr, "Failed to create pipe: %s\n", strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+
+  ctx->pipe_rd = pipe_fds[0];
+
   // Parent: wait for container process (PID 1 in its namespace)
-  int pid = spawn_container(ca);
+  int pid = spawn_container(ctx);
+
+  configure_cgroups(pid);
+
+  char blorg = 'c';
+  write(pipe_fds[1], &blorg, 1);
 
   wait_for_container(pid);
 
-  free(ca);
+  free(ctx);
 
   return 0;
 }

@@ -2,6 +2,12 @@
 #include <linux/seccomp.h>
 #include <stddef.h>
 #include <sys/syscall.h>
+/**
+ * Currently blocking getxattr, lgetxattr, and fgetxattr. These syscalls can be
+ * used for reconniasance as they probe extended attributes (see SELinux).
+ * Trying to run this sandbox through debugging tools like valgrind will result
+ * in the child being killed under signal 31 (Bad syscall).
+ */
 
 /**
  * FIRST LINE:
@@ -33,8 +39,6 @@ static const struct sock_filter filter[] = {
     ALLOW(__NR_arch_prctl),
     ALLOW(__NR_brk),
     ALLOW(__NR_chdir),
-    ALLOW(__NR_chmod),
-    ALLOW(__NR_chown),
     ALLOW(__NR_clock_gettime),
     ALLOW(__NR_clock_nanosleep),
     ALLOW(__NR_clone),
@@ -83,6 +87,7 @@ static const struct sock_filter filter[] = {
     ALLOW(__NR_open),
     ALLOW(__NR_openat),
     ALLOW(__NR_openat2),
+    ALLOW(__NR_pipe),
     ALLOW(__NR_poll),
     ALLOW(__NR_pread64),
     ALLOW(__NR_prctl),
@@ -111,6 +116,7 @@ static const struct sock_filter filter[] = {
     ALLOW(__NR_symlinkat),
     ALLOW(__NR_time),
     ALLOW(__NR_tgkill),
+    ALLOW(__NR_tkill),
     ALLOW(__NR_uname),
     ALLOW(__NR_umask),
     ALLOW(__NR_unlink),
@@ -138,11 +144,6 @@ static const struct sock_fprog prog = {
     .filter = (struct sock_filter *)filter,
 };
 
+const struct sock_filter *get_filter(void) { return filter; }
 
-const struct sock_filter *get_filter(void) {
-    return filter;
-}
-
-const struct sock_fprog *get_fprog(void) {
-    return &prog;
-}
+const struct sock_fprog *get_fprog(void) { return &prog; }
