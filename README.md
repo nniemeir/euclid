@@ -1,4 +1,6 @@
 # Euclid 
+**⚠ Still very early in development**
+
 An application sandboxing tool, created for educational purposes.
 
 ## Dependencies
