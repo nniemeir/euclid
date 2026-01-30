@@ -20,8 +20,9 @@ static int spawn_container(struct container_ctx *ca) {
   // Allocate stack for clone
   char *stack = malloc(STACK_SIZE);
   if (!stack) {
-    fprintf(stderr, "Memory allocation failed for child's stack: %s\n", strerror(errno));
-    exit(EXIT_FAILURE);
+    fprintf(stderr, "Memory allocation failed for child's stack: %s\n",
+            strerror(errno));
+    return -1;
   }
 
   char *stack_top = stack + STACK_SIZE;
@@ -32,7 +33,7 @@ static int spawn_container(struct container_ctx *ca) {
   if (pid == -1) {
     fprintf(stderr, "Failed to create child process: %s\n", strerror(errno));
     free(stack);
-    exit(EXIT_FAILURE);
+    return -1;
   }
 
   free(stack);
@@ -59,7 +60,7 @@ static void wait_for_container(const int pid) {
 int main(int argc, char *argv[]) {
   if (argc < 4) {
     fprintf(stderr, "usage: %s <rootfs> <hostname> <cmd>\n", argv[0]);
-    return 1;
+    exit(EXIT_FAILURE);
   }
 
   struct container_ctx *ctx = malloc(sizeof(struct container_ctx));
@@ -68,7 +69,7 @@ int main(int argc, char *argv[]) {
   ctx->hostname = argv[2];
   ctx->cmd = &argv[3];
 
-  int pipe_fds[2]; 
+  int pipe_fds[2];
   if (pipe(pipe_fds) == -1) {
     fprintf(stderr, "Failed to create pipe: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
@@ -79,14 +80,25 @@ int main(int argc, char *argv[]) {
   // Parent: wait for container process (PID 1 in its namespace)
   int pid = spawn_container(ctx);
 
-  configure_cgroups(pid);
+  if (pid == -1) {
+    fprintf(stderr, "Failed to create container, exiting...");
+    exit(EXIT_FAILURE);
+  }
 
-  char blorg = 'c';
-  write(pipe_fds[1], &blorg, 1);
+  if (configure_cgroups(pid)) {
+    fprintf(stderr, "Failed to configure cgroups, exiting...");
+    exit(EXIT_FAILURE);
+  }
+
+  char ping = 'c';
+  if (write(pipe_fds[1], &ping, 1) == -1) {
+    fprintf(stderr, "Failed to write to pipe: %s\n", strerror(errno));
+    exit(EXIT_FAILURE);
+  }
 
   wait_for_container(pid);
 
   free(ctx);
 
-  return 0;
+  exit(EXIT_SUCCESS);
 }
