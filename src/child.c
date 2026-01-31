@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "child.h"
+#include "context.h"
 #include "filter.h"
 
 static int setup_uts_namespace(struct container_ctx *ctx) {
@@ -145,7 +146,7 @@ int child_main(void *arg) {
   struct container_ctx *ctx = arg;
   char *pong;
   
-  if (read(ctx->pipe_rd, &pong, 1) == -1) {
+  if (read(ctx->pipe_fds[0], &pong, 1) == -1) {
     fprintf(stderr, "Failed to read from pipe: %s\n", strerror(errno));
     return -1;
   }

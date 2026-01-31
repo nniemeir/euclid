@@ -13,10 +13,11 @@
 
 #include "cgroups.h"
 #include "child.h"
+#include "context.h"
 
 #define STACK_SIZE (1024 * 1024)
 
-static int spawn_container(struct container_ctx *ca) {
+static int spawn_container(struct container_ctx *ctx) {
   // Allocate stack for clone
   char *stack = malloc(STACK_SIZE);
   if (!stack) {
@@ -29,7 +30,7 @@ static int spawn_container(struct container_ctx *ca) {
 
   int flags = CLONE_NEWUTS | CLONE_NEWPID | CLONE_NEWNS | SIGCHLD;
 
-  int pid = clone(child_main, stack_top, flags, ca);
+  int pid = clone(child_main, stack_top, flags, ctx);
   if (pid == -1) {
     fprintf(stderr, "Failed to create child process: %s\n", strerror(errno));
     free(stack);
@@ -57,47 +58,41 @@ static void wait_for_container(const int pid) {
   }
 }
 
-int main(int argc, char *argv[]) {
-  if (argc < 4) {
-    fprintf(stderr, "usage: %s <rootfs> <hostname> <cmd>\n", argv[0]);
-    exit(EXIT_FAILURE);
-  }
-
-  struct container_ctx *ctx = malloc(sizeof(struct container_ctx));
-
-  ctx->rootfs = argv[1];
-  ctx->hostname = argv[2];
-  ctx->cmd = &argv[3];
-
+int main(void) {
   int pipe_fds[2];
   if (pipe(pipe_fds) == -1) {
     fprintf(stderr, "Failed to create pipe: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
   }
 
-  ctx->pipe_rd = pipe_fds[0];
+  struct container_ctx *ctx = init_ctx(pipe_fds);
+  if (!ctx) {
+    fprintf(stderr, "Failed to configure container, exiting...\n");
+    exit(EXIT_FAILURE);
+  }
 
   // Parent: wait for container process (PID 1 in its namespace)
   int pid = spawn_container(ctx);
 
   if (pid == -1) {
-    fprintf(stderr, "Failed to create container, exiting...");
+    fprintf(stderr, "Failed to create container, exiting...\n");
     exit(EXIT_FAILURE);
   }
 
   if (configure_cgroups(pid)) {
-    fprintf(stderr, "Failed to configure cgroups, exiting...");
-    exit(EXIT_FAILURE);
+    fprintf(stderr, "Failed to configure cgroups, exiting...\n");
+    // exit(EXIT_FAILURE);
   }
 
   char ping = 'c';
-  if (write(pipe_fds[1], &ping, 1) == -1) {
+  if (write(ctx->pipe_fds[1], &ping, 1) == -1) {
     fprintf(stderr, "Failed to write to pipe: %s\n", strerror(errno));
     exit(EXIT_FAILURE);
   }
 
   wait_for_container(pid);
 
+  free(ctx->cmd);
   free(ctx);
 
   exit(EXIT_SUCCESS);
