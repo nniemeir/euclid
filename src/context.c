@@ -21,7 +21,7 @@ static const char *CPU_MAX = "100000, 100000";
 // Hard memory limit
 static const int MEM_MAX = 512000000;
 // Soft memory limit (10%)
-static const int MEM_HIGH = (MEM_MAX - (MEM_MAX * 0.10));
+static const int MEM_HIGH = (int)(MEM_MAX - (MEM_MAX * 0.10));
 // Disable Swap
 static const int MEM_SWAP_MAX = 0;
 // Prevent Fork Bombs
