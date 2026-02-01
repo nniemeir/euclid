@@ -1,16 +1,61 @@
 .TH EUCLID "1" "February 2026" "Jacob Niemeir" "User Commands"
 .SH NAME
-Euclid \- A sandboxing utility, created for educational purposes.
+Euclid \- A x86_64 Linux application sandboxing utility, created for educational purposes.
 .SH SYNOPSIS
-.B orlok [-p \fI\,PATH\/\fR]
+.B euclid
 
 .SH DESCRIPTION
+.B euclid
+creates an isolated execution environment using Linux namespaces, cgroups v2, and seccomp-bpf filtering. 
+It launches a sandboxed process with restricted system access and resource limits.
+
+Provides: 
+.IP \(bu 2
+UTS, PID, mount, network, and IPC namespace isolation
+.IP \(bu 2
+Resource limits via cgroups v2 (CPU, memory, swap, PIDs)
+.IP \(bu 2
+Syscall filtering via seccomp-bpf
+.IP \(bu 2
+Filesystem isolation with pivot_root
+.IP \(bu 2
+Capability dropping
+
+.SH CONFIGURATION
+All configuration is compile-time and must be set in 
+.I src/context.c
+before building.
+
 .TP
-\fB\-h\fR 
-Display program usage
+.B HOSTNAME
+Container hostname (default: "euclid")
+
 .TP
-\fB\-p\fR 
-Specify path of executable to run
+.B ROOTFS
+Path to root filesystem (default: "/home/noodle/alpine")
+
+.TP
+.B CMD
+Command to execute in container (default: "/bin/sh")
+
+.TP
+.B CPU_MAX
+CPU quota in cgroups format (default: "100000, 100000")
+
+.TP
+.B MEM_MAX
+Hard memory limit in bytes (default: 512000000)
+
+.TP
+.B PIDS_MAX
+Maximum number of processes (default: 256)
+
+.SH SEE ALSO
+.BR namespaces (7),
+.BR cgroups (7),
+.BR seccomp (2),
+.BR capabilities (7),
+.BR pivot_root (2)
 
 .SH COPYRIGHT
 Copyright \(co 2026 Jacob Niemeir.
