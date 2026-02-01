@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <linux/audit.h>
+#include <linux/capability.h>
 #include <linux/filter.h>
 #include <linux/limits.h>
 #include <linux/seccomp.h>
@@ -122,6 +123,46 @@ static int mount_proc(void) {
   return 0;
 }
 
+static int drop_capabilities(void) {
+  for (int cap = 0; cap <= CAP_LAST_CAP; cap++) {
+    if (syscall(SYS_prctl, PR_CAPBSET_DROP, cap, 0, 0, 0) == -1) {
+      //EINVAL means the capability number doesn't exist
+      if (errno != EINVAL) {
+        fprintf(stderr, "Failed to drop capability %d from bounding set: %s\n",
+                cap, strerror(errno));
+        return -1;
+      }
+    }
+  }
+
+  struct __user_cap_header_struct header;
+  struct __user_cap_data_struct data[2];
+
+  memset(&header, 0, sizeof(header));
+  memset(&data, 0, sizeof(data));
+
+  header.version = _LINUX_CAPABILITY_VERSION_3;
+
+  header.pid = 0;
+
+  if (syscall(SYS_capset, &header, data) == -1) {
+    fprintf(stderr, "Failed to clear capability sets: %s\n", strerror(errno));
+    return -1;
+  }
+
+  return 0;
+}
+
+static int lock_capabilities(void) {
+  /* This tells the kernel not to increase privileges from this point forward */
+  if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1) {
+    fprintf(stderr, "Failed to set PR_SET_NO_NEW_PRIVS: %s\n", strerror(errno));
+    return -1;
+  }
+
+  return 0;
+}
+
 /**
  * prctl itself always takes five arguments, though the compiler will default
  * missing args to zero if you omit them. It is the first flag that indicates
@@ -129,11 +170,6 @@ static int mount_proc(void) {
  * for clarity's sake.
  */
 static int apply_seccomp(void) {
-  /* This tells the kernel not to increase privileges from this point forward */
-  if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1) {
-    fprintf(stderr, "Failed to set PR_SET_NO_NEW_PRIVS: %s\n", strerror(errno));
-    return -1;
-  }
   /* Installs the seccomp filter defined in prog array */
   if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, get_fprog(), 0, 0) == -1) {
     fprintf(stderr, "Failed to install seccomp filter: %s\n", strerror(errno));
@@ -146,7 +182,7 @@ static int apply_seccomp(void) {
 int child_main(void *arg) {
   struct container_ctx *ctx = arg;
   char *pong;
-  
+
   if (read(ctx->pipe_fds[0], &pong, 1) == -1) {
     fprintf(stderr, "Failed to read from pipe: %s\n", strerror(errno));
     return -1;
@@ -176,7 +212,14 @@ int child_main(void *arg) {
     return -1;
   }
 
-  // Apply the seccomp filter we defined above
+  if (drop_capabilities() == -1) {
+    return -1;
+  }
+
+  if (lock_capabilities() == -1) {
+    return -1;
+  }
+
   if (apply_seccomp() == -1) {
     return -1;
   }

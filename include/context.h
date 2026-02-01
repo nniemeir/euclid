@@ -13,6 +13,7 @@ struct container_ctx {
   int pipe_fds[2];
 };
 
+void cleanup_ctx(struct container_ctx *ctx);
 struct container_ctx *init_ctx(int pipe_fds[2]);
 
 #endif

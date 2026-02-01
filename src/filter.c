@@ -41,7 +41,6 @@ static const struct sock_filter filter[] = {
     ALLOW(__NR_chdir),
     ALLOW(__NR_clock_gettime),
     ALLOW(__NR_clock_nanosleep),
-    ALLOW(__NR_clone),
     ALLOW(__NR_close),
     ALLOW(__NR_dup),
     ALLOW(__NR_dup2),
@@ -126,12 +125,7 @@ static const struct sock_filter filter[] = {
     ALLOW(__NR_write),
     ALLOW(__NR_writev),
     ALLOW(__NR_utimensat),
-
-    // TODO: These should only be allowed for UNIX sockets
-    ALLOW(__NR_socket),
-    ALLOW(__NR_connect),
-    ALLOW(__NR_sendfile),
-    ALLOW(__NR_recvfrom),
+    // Allow calls for UNIX sockets only
 
     /* If none of the allowed syscalls are a match, we kill the process */
     BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),

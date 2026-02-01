@@ -28,7 +28,8 @@ static int spawn_container(struct container_ctx *ctx) {
 
   char *stack_top = stack + STACK_SIZE;
 
-  int flags = CLONE_NEWUTS | CLONE_NEWPID | CLONE_NEWNS | SIGCHLD;
+  // TODO Implement CLONE_NEWUSER
+  int flags = CLONE_NEWUTS | CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWNET | CLONE_NEWIPC | SIGCHLD;
 
   int pid = clone(child_main, stack_top, flags, ctx);
   if (pid == -1) {
@@ -92,8 +93,7 @@ int main(void) {
 
   wait_for_container(pid);
 
-  free(ctx->cmd);
-  free(ctx);
+  cleanup_ctx(ctx);
 
   exit(EXIT_SUCCESS);
 }

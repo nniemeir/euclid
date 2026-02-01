@@ -51,6 +51,8 @@ void cleanup_ctx(struct container_ctx *ctx) {
   if (ctx->cpu_max) {
     free(ctx->cpu_max);
   }
+  
+  free(ctx);
 }
 
 struct container_ctx *init_ctx(int pipe_fds[2]) {
