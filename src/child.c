@@ -16,6 +16,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#include "cgroups.h"
 #include "child.h"
 #include "context.h"
 #include "filter.h"
@@ -148,6 +149,10 @@ int child_main(void *arg) {
   
   if (read(ctx->pipe_fds[0], &pong, 1) == -1) {
     fprintf(stderr, "Failed to read from pipe: %s\n", strerror(errno));
+    return -1;
+  }
+
+  if (add_process_to_cgroup() == -1) {
     return -1;
   }
 

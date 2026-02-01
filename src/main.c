@@ -79,7 +79,7 @@ int main(void) {
     exit(EXIT_FAILURE);
   }
 
-  if (configure_cgroups(pid)) {
+  if (configure_cgroups(ctx)) {
     fprintf(stderr, "Failed to configure cgroups, exiting...\n");
     // exit(EXIT_FAILURE);
   }
