@@ -181,7 +181,7 @@ static int setup_overlay(struct container_ctx *ctx) {
     free(overlay_upper);
     return -1;
   }
-  snprintf(overlay_merged, upper_len, "%s/merged", ctx->overlay_base);
+  snprintf(overlay_merged, merged_len, "%s/merged", ctx->overlay_base);
 
   if (mkdir(overlay_work, 0755) == -1) {
     fprintf(stderr, "Failed to create overlayfs working directory: %s\n",
