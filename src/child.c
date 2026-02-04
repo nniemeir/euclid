@@ -35,6 +35,7 @@
 #include <linux/seccomp.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mount.h>
 #include <sys/prctl.h>
@@ -101,6 +102,157 @@ static int setup_mount_propagation(void) {
 }
 
 /**
+ * setup_overlay - Configure overlayfs for writable rootfs
+ * @ctx: Container configuration containing paths for overlayFS
+ *
+ * Creates an overlay filesystem:
+ * - Lower layer: Read-only rootfs
+ * - Upper layer: Writable layer
+ * - Work layer: Temporary workspace used by overlayfs for atomic operations
+ * - Merged: Combined view of lower and upper that becomes the new root
+ *
+ * OVERLAYFS:
+ * When files are read, overlayfs checks upper first then falls back to lower
+ * When files are written, changes always got to upper (copied upwards from
+ * lower if needed) The merged directory presents a unified view where the
+ * modified files in upper mask the originals in lower.
+ *
+ * TMPFS:
+ * A tmpfs is mounted at overlay_base to store the upper and work directories in
+ * RAM. This has a few effects:
+ * - File operations are faster (since RAM is faster than disk)
+ * - No persistent filesystem state
+ * - The lower layer (original rootfs) remains unchanged
+ *
+ * Return: 0 on success, -1 on failure
+ */
+static int setup_overlay(struct container_ctx *ctx) {
+
+  if (mkdir(ctx->overlay_base, 0755) == -1 && errno != EEXIST) {
+    fprintf(stderr, "Failed to create overlayfs base directory: %s\n",
+            strerror(errno));
+    return -1;
+  }
+
+  char tmpfs_opts[32];
+  snprintf(tmpfs_opts, sizeof(tmpfs_opts), "size=%dM", ctx->tmpfs_size);
+
+  /**
+   * Everything created inside of the tmpfs lives in RAM and only exists as long
+   * as the sandbox is running.
+   */
+  if (mount("tmpfs", ctx->overlay_base, "tmpfs", 0, tmpfs_opts) == -1) {
+    fprintf(stderr, "Failed to mount tmpfs: %s\n", strerror(errno));
+    return -1;
+  }
+
+  /*
+   * Construct paths for the working, upper, and merged directories of our
+   * overlay.
+   */
+  int work_len = strlen(ctx->overlay_base) + strlen("/work") + 1;
+  char *overlay_work = malloc(work_len);
+  if (!overlay_work) {
+    fprintf(stderr,
+            "Failed to allocate memory for overlayfs work directory: %s\n",
+            strerror(errno));
+    return -1;
+  }
+  snprintf(overlay_work, work_len, "%s/work", ctx->overlay_base);
+
+  int upper_len = strlen(ctx->overlay_base) + strlen("/upper") + 1;
+  char *overlay_upper = malloc(upper_len);
+  if (!overlay_upper) {
+    fprintf(stderr,
+            "Failed to allocate memory for overlayfs upper directory: %s\n",
+            strerror(errno));
+    free(overlay_work);
+    return -1;
+  }
+  snprintf(overlay_upper, upper_len, "%s/upper", ctx->overlay_base);
+
+  int merged_len = strlen(ctx->overlay_base) + strlen("/merged") + 1;
+  char *overlay_merged = malloc(merged_len);
+  if (!overlay_merged) {
+    fprintf(stderr,
+            "Failed to allocate memory for overlayfs merged directory: %s\n",
+            strerror(errno));
+    free(overlay_work);
+    free(overlay_upper);
+    return -1;
+  }
+  snprintf(overlay_merged, upper_len, "%s/merged", ctx->overlay_base);
+
+  if (mkdir(overlay_work, 0755) == -1) {
+    fprintf(stderr, "Failed to create overlayfs working directory: %s\n",
+            strerror(errno));
+    free(overlay_work);
+    free(overlay_upper);
+    free(overlay_merged);
+    return -1;
+  }
+
+  if (mkdir(overlay_upper, 0755) == -1) {
+    fprintf(stderr, "Failed to create overlay upper directory: %s\n",
+            strerror(errno));
+    free(overlay_work);
+    free(overlay_upper);
+    free(overlay_merged);
+    return -1;
+  }
+
+  if (mkdir(overlay_merged, 0755) == -1) {
+    fprintf(stderr, "Failed to create overlay work directory: %s\n",
+            strerror(errno));
+    free(overlay_work);
+    free(overlay_upper);
+    free(overlay_merged);
+    return -1;
+  }
+
+  const int mount_opts_length = strlen("lowerdir=,upperdir=,workdir=") +
+                                strlen(ctx->rootfs) + strlen(overlay_upper) +
+                                strlen(overlay_work) + 1;
+
+  char *mount_opts = malloc(mount_opts_length);
+  if (!mount_opts) {
+    fprintf(stderr, "Failed to allocate memory for overlay mount options: %s\n",
+            strerror(errno));
+    free(overlay_work);
+    free(overlay_upper);
+    free(overlay_merged);
+    return -1;
+  }
+
+  snprintf(mount_opts, mount_opts_length, "lowerdir=%s,upperdir=%s,workdir=%s",
+           ctx->rootfs, overlay_upper, overlay_work);
+
+  free(overlay_work);
+  free(overlay_upper);
+
+  if (mount("overlay", overlay_merged, "overlay", 0, mount_opts) == -1) {
+    fprintf(stderr, "Failed to mount overlay: %s\n", strerror(errno));
+    free(overlay_merged);
+    return -1;
+  }
+
+  /*
+   * For the sake of simplicity, we update the rootfs path to be the overlay
+   * merged directory
+   */
+  free(ctx->rootfs);
+  ctx->rootfs = strdup(overlay_merged);
+  if (!ctx->rootfs) {
+    fprintf(stderr, "Failed to update rootfs pointer: %s\n", strerror(errno));
+    free(overlay_merged);
+    return -1;
+  }
+
+  free(overlay_merged);
+  return 0;
+}
+
+/**
  * setup_rootfs - Change root filesystem using pivot_root
  * @ctx: Container configuration containing rootfs path
  *
@@ -141,7 +293,7 @@ static int setup_rootfs(struct container_ctx *ctx) {
    * Create the directory to store the old root.
    * EEXIST is okay here, directory might exist from a previous run.
    */
-  if (mkdir(put_old, 0777) == -1 && errno != EEXIST) {
+  if (mkdir(put_old, 0700) == -1 && errno != EEXIST) {
     fprintf(stderr, "Failed to make directory %s: %s\n", put_old,
             strerror(errno));
     return -1;
@@ -433,6 +585,14 @@ int child_main(void *arg) {
    * Make mounts private to prevent propagation to/from host
    */
   if (setup_mount_propagation() == -1) {
+    return -1;
+  }
+
+  /*
+   * OverlayFS gives the user a temporary filesystem on top of the read-only
+   * rootfs, this is used extensively in Docker.
+   */
+  if (setup_overlay(ctx) == -1) {
     return -1;
   }
 

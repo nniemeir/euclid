@@ -8,7 +8,7 @@ Creates an isolated execution environment via:
 - **Namespace isolation**: Separate UTS (hostname), PID, mount, network, and IPC namespaces
 - **Resource limits**: CPU, memory, swap, and pid restrictions through cgroups v2
 - **Syscall filtering**: Whitelist-based syscall filtering through seccomp-bpf
-- **Filesystem isolation**: Separate root filesystem through the `pivot_root` syscall
+- **Filesystem isolation**: Separate read-only root filesystem through the `pivot_root` syscall and tmpfs/overlayfs
 - **Capability dropping**: Removes all Linux capabilities from the sandboxed process
 
 ## Prerequisites
@@ -69,8 +69,6 @@ This launches the sandbox with the command specified in the configuration (`/bin
 
 ## Planned Enhancements
 - User namespaces (`CLONE_NEWUSER`)
-- Making the rootfs read-only
-- tmpfs overlay for temporary filesystem
 
 ## License
 GNU General Public License V2

@@ -148,6 +148,16 @@ static const int PIDS_MAX = 256;
 static const unsigned int NUM_COMMAND_ARGS = sizeof(CMD) / sizeof(CMD[0]);
 
 /**
+ * OVERLAY_BASE - Base directory for overlayfs
+ */
+static const char *OVERLAY_BASE = "/tmp/euclid_overlay";
+
+/**
+ * TMPFS_SIZE - Size of the tmpfs in Megabytes
+ */
+static const int TMPFS_SIZE = 512;
+
+/**
  * cleanup_ctx - Free all dynamically allocated memory in container context
  * @ctx: Container context to clean up
  *
@@ -177,6 +187,10 @@ void cleanup_ctx(struct container_ctx *ctx) {
     free(ctx->cpu_max);
   }
 
+  if (ctx->overlay_base) {
+    free(ctx->overlay_base);
+  }
+
   free(ctx);
 }
 
@@ -199,13 +213,15 @@ void cleanup_ctx(struct container_ctx *ctx) {
  * - Store pipe file descriptors
  *
  * STRDUP:
- * strdup() allocates memory and copies a string. We use it instead of direct assignment because:
+ * strdup() allocates memory and copies a string. We use it instead of direct
+ * assignment because:
  * - String constants are in read-only memory
  * - We need mutable copies that can be freed
  * - Memory management is cleaner since everything is heap-allocated
  *
  * COMMAND ARRAY:
- * The command array is NULL-terminated (execvp requirement), so we allocate NUM_COMMAND_ARGS + 1 elements and set the last to NULL.
+ * The command array is NULL-terminated (execvp requirement), so we allocate
+ * NUM_COMMAND_ARGS + 1 elements and set the last to NULL.
  *
  * Return: Pointer to initialized context on success, NULL on failure
  */
@@ -252,7 +268,7 @@ struct container_ctx *init_ctx(int pipe_fds[2]) {
       return NULL;
     }
   }
-  
+
   ctx->cmd[NUM_COMMAND_ARGS] = NULL;
 
   ctx->cpu_max = strdup(CPU_MAX);
@@ -271,6 +287,17 @@ struct container_ctx *init_ctx(int pipe_fds[2]) {
 
   ctx->pipe_fds[0] = pipe_fds[0];
   ctx->pipe_fds[1] = pipe_fds[1];
+
+  ctx->overlay_base = strdup(OVERLAY_BASE);
+  if (!ctx->overlay_base) {
+    fprintf(stderr,
+            "Failed to duplicate string for overlayfs base directory: %s\n",
+            strerror(errno));
+    cleanup_ctx(ctx);
+    return NULL;
+  }
+
+  ctx->tmpfs_size = TMPFS_SIZE;
 
   return ctx;
 }

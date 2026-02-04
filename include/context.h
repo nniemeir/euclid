@@ -33,6 +33,8 @@
  * @mem_swap_max: Maximum swap usage in bytes (0 to disable swap)
  * @pids_max: Maximum number of PIDS (prevents fork bombs)
  * @pipe_fds: File descriptors for parent-child synchronization
+ * @overlay_base: Directory to store tmpfs overlay
+ * @tmpfs_size: Size of the tempfs fileystem in Megabytes
  *
  * SYNCHRONIZATION:
  * The pipe_fds are used to coordinate between parent and child:
@@ -42,15 +44,17 @@
  * - Child receives signal and joins cgroup
  */
 struct container_ctx {
+  char **cmd;
   char *hostname;
   char *rootfs;
-  char **cmd;
   char *cpu_max;
   int mem_high;
   int mem_max;
   int mem_swap_max;
   int pids_max;
   int pipe_fds[2];
+  char *overlay_base;
+  int tmpfs_size;
 };
 
 /**
