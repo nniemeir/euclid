@@ -1,5 +1,4 @@
 # Euclid 
-**⚠ Still very early in development**
 
 A x86_64 Linux application sandboxing tool demonstrating container isolation techniques via namespaces, cgroups, and seccomp. 
 
