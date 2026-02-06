@@ -82,15 +82,6 @@ static const struct sock_filter filter[] = {
     BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
 
     /*
-     * TODO - For each allowed syscall (this will take a while)
-     * - What It Does
-     * - Risk Level
-     * - Potential Misuse
-     * - Mitigations
-     * - Decision Rationale
-     */
-
-    /*
      * ========================================================================
      * FILE AND DIRECTORY OPERATIONS
      * ========================================================================
