@@ -73,19 +73,19 @@ static int mount_tmpfs(struct container_ctx *ctx) {
  * to call even if initialization fails partway through since we check for NULL.
  */
 static void cleanup_overlay_dirs(struct overlay_dirs *dirs) {
-  if (!dirs->overlay_work) {
+  if (dirs->overlay_work) {
     free(dirs->overlay_work);
   }
 
-  if (!dirs->overlay_upper) {
+  if (dirs->overlay_upper) {
     free(dirs->overlay_upper);
   }
 
-  if (!dirs->overlay_merged) {
+  if (dirs->overlay_merged) {
     free(dirs->overlay_merged);
   }
 
-  if (!dirs) {
+  if (dirs) {
     free(dirs);
   }
 }
