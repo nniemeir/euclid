@@ -98,7 +98,6 @@ static int spawn_container(struct container_ctx *ctx) {
 
   /*
    * Set up namespace flags for clone().
-   * TODO Implement CLONE_NEWUSER for user namespace support.
    *
    * SIGCHLD ensures we get notified when the child exits so we can call wait()
    * to reap it.
