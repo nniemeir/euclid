@@ -8,8 +8,6 @@
  * Cgroups provides a mechanism to limit and monitor resource usage (CPU,
  * memory, PIDs) for processes.
  *
- * TALK ABOUT CGROUPS v1 vs v2
- *
  * WORKFLOW:
  * - Parent process calls configure_cgroups() to set limits
  * - Child process calls add_self_to_cgroup() to join the cgroup

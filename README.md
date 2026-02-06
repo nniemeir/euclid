@@ -67,9 +67,6 @@ sudo euclid
 ```
 This launches the sandbox with the command specified in the configuration (`/bin/sh` by default). 
 
-## Planned Enhancements
-- User namespaces (`CLONE_NEWUSER`)
-
 ## License
 GNU General Public License V2
 
