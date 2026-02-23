@@ -100,6 +100,12 @@ static void cleanup_overlay_dirs(struct overlay_dirs *dirs) {
 static struct overlay_dirs *construct_overlay_paths(struct container_ctx *ctx) {
   struct overlay_dirs *dirs = {0};
   dirs = malloc(sizeof(struct overlay_dirs));
+  if (!dirs) {
+    fprintf(stderr,
+            "Failed to allocate memory for overlay_dirs struct: %s\n",
+            strerror(errno));
+    return NULL;
+  }
 
   int work_len = strlen(ctx->overlay_base) + strlen("/work") + 1;
   dirs->overlay_work = malloc(work_len);
